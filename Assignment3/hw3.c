@@ -1,10 +1,7 @@
-//
-//  exam_eval.c
-//  Assignment3_OrdinaryPipes
-//
+//Vjay Singh 893732420
+//Nguyen Tran 890143654
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <string.h>
@@ -19,39 +16,34 @@ void request_rating(int firstPipe[], int secondPipe[]);
 void respond_to_the_rating(int firstPipe[], int secondPipe[]);
 
 int main(int argc, const char * argv[]) {
-    int fd[2];
-   pid_t pid;
-   // TODO: Create two pipes
-   //       Terminate the program if fail to create the pipes
-    if(pipe(fd)){
-        fprintf(stderr, "Pipe failed");
-        exit(-1);
-    }
-   
-   // TODO: Create a child process
-   //       Terminate the program if fail to fork a child process
-    pid = fork();
+	pid_t pid;
+	int firstPipe[2];
+	int secondPipe[2];
 
-    if(pid < 0){
-        perror("Could not fork a child process");
-        exit(-1);
-    }
-    
-   // TODO: parent process invokes request_rating
-   //       child process invokes respond_to_the_rating
-    else if (pid > 0){
-        close(fd[READ_END]);
-        request_rating(fd+1, fd);
-        close(fd[WRITE_END]);
-        wait(NULL);
-    }else{
-        close(fd[WRITE_END]);
-        respond_to_the_rating(fd, fd+1);
-        close(fd[READ_END]);
-    }
-    
-   
-   return 0;
+	if ( pipe(firstPipe) == -1 || pipe(secondPipe) == -1 )
+	{
+		printf("Pipe failed.\n");
+		return 1;
+	}
+	
+	pid = fork();
+
+	if ( pid < 0 )
+	{
+		printf("Fork failed\n");
+		return 1;
+	}
+	else if ( pid > 0 )
+	{
+		request_rating(firstPipe, secondPipe);
+		wait(NULL);
+	}
+	else
+	{
+		respond_to_the_rating(firstPipe, secondPipe);
+	}
+	
+   	return 0;
 }
 
 /*********************************************************
@@ -77,8 +69,8 @@ char isExamHard(void)
 void request_rating(int *first_pipe, int *second_pipe) {
    char level;
    char write_msg[BUFFER_SIZE];
-    char read_msg[BUFFER_SIZE];
-    
+   char read_msg[BUFFER_SIZE];   
+
    level = isExamHard();
    
    printf("answer: %c\n", level);
@@ -93,13 +85,17 @@ void request_rating(int *first_pipe, int *second_pipe) {
    }
    printf("easy or hard: %s\n", write_msg);
    
-   // TODO: write the student's response to the first pipe
-    write(*first_pipe, write_msg, strlen(write_msg)+1);
-    //printf(">>Exam 1 is %s\n", write_msg);
+   	// Write a message to child process using first pipe. 
+	close(first_pipe[READ_END]);
+	write(first_pipe[WRITE_END], write_msg, strlen(write_msg)+1);
+	close(first_pipe[WRITE_END]);
 
-   // TODO: read the message from the second pipe
-    read(*second_pipe, read_msg, BUFFER_SIZE);
-    printf(">>Exam 1 is %s\n", read_msg);
+   	// Read the message from second pipe. 
+	close(second_pipe[WRITE_END]);
+	read(second_pipe[READ_END], read_msg, BUFFER_SIZE);
+	close(second_pipe[READ_END]);
+	
+	printf(">>%s!\n",read_msg);
 }
 
 /**********************************************************
@@ -109,29 +105,25 @@ void request_rating(int *first_pipe, int *second_pipe) {
  * first process.                                         *
  *********************************************************/
 void respond_to_the_rating(int *first_pipe, int *second_pipe) {
-    char write_msg[BUFFER_SIZE];
-    char read_msg[BUFFER_SIZE];
-    char level;
-    
-   // printf("\n%s", write_msg);
-//    level = isExamHard();
-//
-//    if ((level == 'E') || (level == 'e')) {
-//        strcpy(write_msg, "easy");
-//    }
-//    else if ((level == 'O') || (level == 'o')) {
-//        strcpy(write_msg, "just right");
-//    }
-//    else {
-//        strcpy(write_msg, "hard");
-//    }
-//
-   // TODO: read the student's response from the first pipe
-    read(*first_pipe, read_msg, BUFFER_SIZE);
-    printf("child read... >%s<\n", read_msg);
-   // TODO: write the new message to the second pipe
-    strcpy(write_msg, read_msg);
-    write(*second_pipe, write_msg, strlen(write_msg)+1);
-    printf("child is writing...: Exam 1 is >%s<\n", write_msg);
+	char read_msg[BUFFER_SIZE];
+	char temp[BUFFER_SIZE];
+	
+	// Read the message from first pipe.
+	close(first_pipe[WRITE_END]);
+	read(first_pipe[READ_END], read_msg, BUFFER_SIZE);
+	close(first_pipe[READ_END]);
+	
+	printf("\tChild read...>%s<\n",read_msg);   
 
+	// Concatenate read message with Exam 1 to send it back to parent. 
+	strcpy(temp, read_msg);
+	strcpy(read_msg,"Exam 1 is ");
+	strcat(read_msg, temp);
+	
+	// Write the message using second pipe. 
+	close(second_pipe[READ_END]);
+	printf("\tChild is writing...:%s\n",read_msg);
+	write(second_pipe[WRITE_END], read_msg, strlen(read_msg));
+	close(second_pipe[WRITE_END]);
 }
+
